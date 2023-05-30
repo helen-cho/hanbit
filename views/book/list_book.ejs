@@ -1,0 +1,125 @@
+<div class="row justify-content-end">
+    <div class="col-6 col-md-4">
+        <form name="frm">
+            <div class="input-group">
+                <input type="text" class="form-control" id="query" value="자바">
+                <button class="btn btn-primary">검색</button>
+            </div>
+        </form>
+    </div>
+</div>
+<hr>
+<div id="list_book" class="row"></div>
+<div class="row my-3">
+    <div class="col text-center">
+        <button id="prev" class="btn btn-sm btn-primary px-4">이전</button>
+        <span id="page" class="mx-2">1</span>
+        <button id="next" class="btn btn-sm btn-primary px-4">다음</button>
+    </div>
+</div>
+
+<!--도서목록 템플릿-->
+<script id="temp_book" type="text/x-handlebars-template">
+    {{#each documents}}
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="card my-2">
+                <div class="card-body text-center">
+                    <img src="{{image thumbnail}}" index="{{@index}}" style="cursor:pointer;width:80%"/>
+                    <div class="ellipsis mt-2">{{ title }}</div>
+                </div>
+                <div class="card-footer" style="font-size:0.5rem;">
+                    <div class="text-center">
+                        {{ format price }}
+                        <span class="cart ms-3" book="{{book @this}}" style="cursor:pointer;color:green;">
+                            CART
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <%-include("modal_book.ejs")%>
+        </div>
+    {{/each}}
+</script>
+
+<!--템플릿 Register Helper-->
+<script>
+    Handlebars.registerHelper("image", function(thumbnail){
+        if(!thumbnail) return "https://via.placeholder.com/120x174"
+        else return thumbnail;
+    });
+
+    Handlebars.registerHelper("format", function(price){
+        if(price) return price.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '원';
+    });
+
+    Handlebars.registerHelper("book", function(book) {
+        return JSON.stringify(book);
+    });
+</script>
+<script type="module">
+    import { app } from "/javascripts/firebaseInit.js";
+    import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+    const db = getDatabase(app);
+    const uid=sessionStorage.getItem("uid");
+    const email=sessionStorage.getItem("email");
+
+    let page=1;
+    let query='자바';
+
+    //장바구니에 넣기
+    $("#list_book").on("click", ".card .cart", async function(){
+        if(uid) {
+            let book=JSON.parse($(this).attr("book"));
+            await set(ref(db, `cart/${uid}/${book.isbn}`), book);
+            alert("장바구니에 등록되었습니다.");
+            //console.log('book', book);
+        }else {
+            location.href="/users/login"
+        }
+    });
+
+    $("#next").on("click", function() {
+        page++;
+        getList();
+    });
+
+    $("#prev").on("click", function(){
+        page--;
+        getList();
+    });
+
+    $(frm).on("submit", function(e) {
+        e.preventDefault();
+        query=$("#query").val();
+        page=1;
+        getList();
+    });
+
+    $("#list_book").on("click", ".card img", function(){
+        let index=$(this).attr("index");
+        $("#modal_book" + index).modal("show");
+    });
+
+    getList();
+    function getList() {
+        $.ajax({
+            type:'get',
+            url:'https://dapi.kakao.com/v3/search/book?target=title',
+            headers:{Authorization:"KakaoAK 4dc52ede9437e2cff0a338f1bd13b1c5"},
+            data:{ query:query, page:page, size:6 },
+            dataType:'json',
+            success:function(data){
+                let temp=Handlebars.compile($("#temp_book").html());
+                $("#list_book").html(temp(data));
+
+                let is_end=data.meta.is_end;
+                let total=data.meta.pageable_count;
+                let last = Math.ceil(total/12);
+
+                $("#page").html(`${ page }/${ last }`);
+                if(page==1) $("#prev").attr("disabled", true); else $("#prev").attr("disabled",false);
+                if(is_end) $("#next").attr("disabled", true); else $("#next").attr("disabled",false);
+            }
+        });
+    }
+</script>

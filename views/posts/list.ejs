@@ -1,0 +1,129 @@
+<style>
+    .heart0, .heart1 {  cursor: pointer; float: right; color: red; font-size: 1.5rem; }
+    .fcnt { font-size: 0.5rem; float:right; margin-top: 15px; }
+</style>
+<div class="row my-2">
+    <div class="col">
+        <h1 class="text-center mb-2">게시글</h1>
+        <div class="text-end">
+            <button class="btn btn-primary btn-sm" id="btn-write">글쓰기</button>
+        </div>
+        <div id="posts"></div>
+        <div class="text-center my-3" id="btn-group" style="display:none">
+            <button class="btn btn-primary btn-sm" id="btn-prev">이전</button>
+            <span class="px-2" id="span-page">1</span>
+            <button class="btn btn-primary btn-sm" id="btn-next">다음</button>
+        </div>
+    </div>
+</div>
+
+<!--게시글목록 템플릿-->
+<script id="temp" type="text/x-handlebars-template">
+    {{#each .}}
+    <div class="card my-2" style="font-size:0.8rem">
+        <div class="card-body">
+            <a href="/posts/{{ id }}"><h5>{{ title }}</h5></a>
+            <div class="ellipsis2">{{ body }}</div>
+        </div>
+        <div class="card-footer">
+            <span>Posted on {{ date }} by {{ email }}</span>
+            <span class="heart{{ucnt}}" id="{{id}}">
+                <span>{{heart ucnt}}</span>
+                <span class="fcnt">{{fcnt}}</span>
+            </span>
+        </div>
+    </div>
+    {{/each}}
+</script>
+<script>
+    Handlebars.registerHelper("heart", function(ucnt){
+        if(ucnt==0) return "♡"; else return "♥";
+    });
+</script>
+
+<script type="module">
+    import { app } from "/javascripts/firebaseInit.js";
+    import { getFirestore,collection,addDoc,deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+    import { query,orderBy,getDocs,where,doc } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+    const db = getFirestore(app);
+    const email=sessionStorage.getItem('email');
+
+
+
+    let page=1;
+    getList();
+
+    $("#btn-next").on("click", function(){
+        page++;
+        getList();
+    });
+
+    $("#btn-prev").on("click", function(){
+        page--;
+        getList();
+    });
+    async function getList(){
+        const q=query(collection(db, "posts"), orderBy("date", "desc"));
+        const snapshot = await getDocs(q);
+        let rows=[];
+        snapshot.docs.forEach(async(row, index)=> {
+            $("#loading").show();
+            let size=3;
+            let last = Math.ceil(snapshot.docs.length/size);
+            let start = (page-1) * size;
+            let end = (page * size) - 1;
+            if(index >= start && index <= end) {
+                console.log('index', index);
+                const q1=query(collection(db,"favorite"),where("pid","==",row.id));
+                const snap1=await getDocs(q1);
+                const q2=query(collection(db,"favorite"),where("pid","==",row.id),where("email","==",email));
+                const snap2=await getDocs(q2);
+                rows.push({ id:row.id, ...row.data(), fcnt:snap1.docs.length, ucnt:snap2.docs.length });
+                let temp=Handlebars.compile($("#temp").html());
+                $("#posts").html(temp(rows));
+
+                if(snapshot.docs.length > 0) $("#btn-group").show();
+                $("#span-page").html(page + "/" + last);
+
+                if(page==1) $("#btn-prev").attr("disabled", true)
+                else $("#btn-prev").attr("disabled", false);
+
+                if(page==last) $("#btn-next").attr("disabled", true)
+                else $("#btn-next").attr("disabled", false);
+                $("#loading").hide();
+            }
+        });
+    }
+
+    //좋아요 추가
+    $("#posts").on("click", ".heart0", async function() {
+        let id=$(this).attr("id");
+        if(email) {
+            await addDoc(collection(db,"favorite"),{pid:id, email:email});
+            alert("좋아요 추가");getList();
+        }else {
+            sessionStorage.setItem("target", "/posts");
+            location.href="/users/login";
+        }
+    });
+
+    //좋아요 삭제
+    $("#posts").on("click", ".heart1", async function() {
+        let id=$(this).attr("id");
+        const q=query(collection(db,"favorite"),where("pid","==",id),where("email","==",email));
+        const snapshot=await getDocs(q);
+        snapshot.forEach(row=> {
+            deleteDoc(doc(db,"favorite",row.id));
+            alert("좋아요 삭제");getList();
+        });
+    });
+
+    $("#btn-write").on("click", function(){
+        if(email){
+           location.href="/posts/write"; 
+        }else{
+            sessionStorage.setItem("target", "/posts/write");
+            location.href="/users/login";
+        }
+    });
+</script>

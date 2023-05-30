@@ -1,0 +1,39 @@
+<div class="row my-5 justify-content-center">
+    <div class="col-8 col-md-6 col-lg-4">
+        <h3 class="text-center mb-5">로그인</h3>
+        <form name="frm" method="post">
+            <div class="input-group my-2">
+                <div class="input-group-text">이 메 일</div>
+                <input class="form-control" name="email" value="hong@inha.com">
+            </div>
+            <div class="input-group">
+                <div class="input-group-text">비밀번호</div>
+                <input class="form-control" name="password" type="password" value="12345678">
+            </div>
+            <div class="my-3"><button class="btn btn-primary w-100">로그인</button></div>
+            <div class="text-end"><a href="/users/join">회원가입</a></div>
+        </form>
+    </div>
+</div>
+<script type="module">
+    import { app } from "/javascripts/firebaseInit.js";
+    import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+    const auth=getAuth(app);
+
+    $(frm).on("submit", function(e){
+        e.preventDefault();
+        let email=$(frm.email).val();
+        let password=$(frm.password).val();
+        signInWithEmailAndPassword(auth, email, password).then(success=>{
+            sessionStorage.setItem("email", email);
+            sessionStorage.setItem("uid", success.user.uid);
+            if(sessionStorage.getItem("target")) {
+                location.href=sessionStorage.getItem("target");
+            }else {
+                location.href="/";
+            }
+        }).catch(error=>{
+            alert(error.message);
+        });
+    });
+</script>    

@@ -1,0 +1,88 @@
+<style>
+    #wrap {
+        overflow-y: scroll;
+        overflow-x: hidden;
+    }
+</style>    
+<div class="row">
+    <div class="col">
+        <button  class="btn btn-primary w-100" id="btn-chat">채팅하기</button>
+        <div class="card" id="card-chat" style="display:none">
+            <div class="card-body">
+                <div id="wrap"  style="height:400px;"></div>
+            </div>
+            <div class="card-footer">
+                <form name="frm" method="post">
+                    <input class="form-control" name="text">
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!--채팅목록 템플릿-->
+<script id="temp_chat" type="text/x-handlebars-template">
+    {{#each .}}
+        <div class="my-3 chat row" style="font-size:0.8rem;">
+            <div class="col-md-1">
+                <img src="{{ photo }}" style="width:50px;height:50px;border-radius:50%;">
+            </div>
+            <div class="col">
+                <div>{{ name }} : {{ text }}</div>
+                <div style="font-size:0.5rem;">{{ date }}</div>
+            </div>
+        </div>
+    {{/each}}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+<script type="module">
+    import { app } from "/javascripts/firebaseInit.js";
+    import { getFirestore,getDoc,doc,addDoc,collection } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+    import { onSnapshot,where,orderBy,query } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+    const db = getFirestore(app);
+
+    const pid="<%=id%>";
+    const uid=sessionStorage.getItem("uid");
+    const email=sessionStorage.getItem("email");
+    let user = { name: "무기명", photo: "https://via.placeholder.com/50x50" };
+
+    //로그인한 경우 사용자 정보 읽어오기
+    if(uid) {
+        $("#btn-chat, #card-chat").toggle();
+        const snapshot = await getDoc(doc(db, "users", uid));
+        if(snapshot.data()) user=snapshot.data();
+        getChat();
+    }
+
+    $("#btn-chat").on("click", function(){
+        sessionStorage.setItem("target", `/posts/${pid}`);
+        location.href="/users/login";
+    });
+
+    $(frm).on("submit", async function(e) {
+        e.preventDefault();
+        let text=$(frm.text).val();
+        if(text=="") {
+            alert("메시지 내용을 입력하세요!");
+            $(frm.text).focus();
+        }else {
+            const date = moment(new Date()).format("YYYY-MM-DD HH:mm:ss");
+            await addDoc(collection(db, "chat"), {
+                pid: pid, email: email, date: date, name: user.name, photo: user.photo, text: text
+            });
+            $(frm.text).val("");
+        }
+    });
+
+    function getChat() {
+        const q=query(collection(db,"chat"), where("pid","==",pid), orderBy("date"));
+        onSnapshot(q, snapshot=> {
+            let rows=[];
+            snapshot.forEach(row=> {
+                rows.push({ id: row.id, ...row.data() });
+            });
+            const temp=Handlebars.compile($("#temp_chat").html());
+            $("#wrap").html(temp(rows));
+            $("#wrap").scrollTop($('#wrap')[0].scrollHeight);
+        });
+    }
+</script>

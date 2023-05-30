@@ -1,0 +1,45 @@
+<div class="row my-5">
+    <div class="col">
+        <h1 class="text-center mb-5">장바구니</h1>
+        <div id="cart_list"></div>
+    </div>
+</div>
+<!--장바구니 템플릿-->
+<script id="temp" type="text/x-handlebars-template">
+    <table class="table table-striped">
+    {{#each .}}
+        <tr>
+            <td>{{title}}</td>
+            <td>{{authors}}</td>
+            <td>{{price}}</td>
+            <td><button class="btn btn-danger btn-sm" isbn="{{ isbn }}">삭제</button></td>
+        </tr>
+    {{/each}}
+    </table>
+</script>
+
+<script type="module">
+    import { app } from "/javascripts/firebaseInit.js";
+    import { getDatabase, ref, onValue, remove } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-database.js";
+    const db = getDatabase(app);
+    const uid=sessionStorage.getItem('uid');
+
+    //장바구니 목록
+    onValue(ref(db, `cart/${uid}`), snapshot=>{
+        let rows=[];
+        snapshot.forEach(row=>{
+            rows.push({ key:row.key, ...row.val() });
+        });
+        //console.log(rows);
+        let temp=Handlebars.compile($("#temp").html());
+        $("#cart_list").html(temp(rows));
+    });
+
+    //장바구니 삭제
+    $("#cart_list").on("click", ".btn-danger", function(){
+        let isbn=$(this).attr("isbn");
+        if(confirm(isbn + ' 삭제하실래요?')){
+            remove(ref(db, `cart/${uid}/${isbn}`));
+        }
+    });
+</script>
